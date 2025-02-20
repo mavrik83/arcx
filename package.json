@@ -1,0 +1,29 @@
+{
+  "name": "arcx",
+  "version": "1.0.0",
+  "description": "A lightweight, dependency-free fetch utility for APIs and React.",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && mv dist/index.js dist/index.cjs.js && tsc --module ESNext --outDir dist && mv dist/index.js dist/index.esm.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "fetch",
+    "API",
+    "typescript",
+    "react",
+    "fetch-hook"
+  ],
+  "author": "Ryan Huber",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.0",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.13.4"
+  }
+}
