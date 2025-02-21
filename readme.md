@@ -27,7 +27,7 @@ async function getData() {
 
 ## Using ArcX in React
 
-### ArcXProvider (Optional)
+### `ArcXProvider` (Optional)
 
 If you’re building a React application, you can wrap your app with the `ArcXProvider` for a simpler configuration:
 
@@ -36,10 +36,7 @@ import { ArcXProvider } from "arcx";
 
 function App() {
   return (
-    <ArcXProvider
-      baseUrl="https://api.example.com"
-      headers={{ Authorization: "Bearer token" }}
-    >
+    <ArcXProvider baseUrl="https://api.example.com" headers={{ Authorization: "Bearer token" }}>
       {/* ...rest of your app */}
     </ArcXProvider>
   );
@@ -86,6 +83,88 @@ export default function Page() {
     </Suspense>
   );
 }
+```
+
+## Using ArcX with Next.js (App Router)
+
+With Next.js 13+ (App Router), you can still use `ArcXProvider` in a **Client Component**. For example, create a `providers.tsx` file:
+
+```tsx
+"use client";
+
+import React from "react";
+import { ArcXProvider } from "arcx";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ArcXProvider
+      baseUrl="https://api.example.com"
+      interceptors={{
+        onError: (error) => {
+          console.error("[ArcX] Global error:", error);
+        },
+      }}
+    >
+      {children}
+    </ArcXProvider>
+  );
+}
+```
+
+Then, in your `layout.tsx` or a similar Server Component, render `<Providers>`:
+
+```tsx
+// app/layout.tsx (Server Component by default)
+import React from "react";
+import { Providers } from "./providers";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+Since `Providers` is a **Client Component**, you can safely pass function-based interceptors to `ArcXProvider`.
+
+### Fetching in Next.js
+
+- **Client-side Fetches**: Use `useFetch` or `fetchRequest` in Client Components.  
+- **Server-side Fetches**: You can call `fetchRequest` in a server route or Server Component, but be aware that interceptors requiring browser APIs (like `useEffect`) won’t apply in SSR-only contexts. If you need global config on the server, call `configureArcX` in your server code with the appropriate settings.
+
+## Using ArcX in Non-React / Node
+
+ArcX is not limited to React. You can simply import `fetchRequest` in any Node or browser-based script:
+
+```ts
+import { configureArcX, fetchRequest } from "arcx";
+
+// Optional global config
+configureArcX({ baseUrl: "https://api.example.com" });
+
+async function main() {
+  const data = await fetchRequest("/endpoint", { method: "GET" });
+  console.log("Data:", data);
+}
+
+main().catch(console.error);
+```
+
+You can still provide interceptors if you like:
+
+```ts
+configureArcX({
+  interceptors: {
+    onRequest: (req) => {
+      req.headers = { ...req.headers, "X-Custom": "Value" };
+      return req;
+    },
+  },
+});
 ```
 
 ## Key Features
