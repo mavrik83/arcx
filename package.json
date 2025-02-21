@@ -1,6 +1,6 @@
 {
   "name": "arcx",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A lightweight, dependency-free fetch utility for APIs and React.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
