@@ -8,7 +8,7 @@ ArcX is a lightweight, dependency-free fetch utility for handling API requests i
 
 To install ArcX, use npm:
 
-```sh
+```bash
 npm install arcx
 ```
 
@@ -25,10 +25,18 @@ configureArcX({
   baseUrl: "https://api.example.com",
   headers: { "Authorization": "Bearer token" },
   interceptors: {
-    onRequest: (config) => { /* modify request */ return config; },
-    onResponse: (response) => { /* modify response */ return response; },
-    onError: (error) => { console.error(error); }
-  }
+    onRequest: (config) => {
+      // Modify request
+      return config;
+    },
+    onResponse: (response) => {
+      // Modify response
+      return response;
+    },
+    onError: (error) => {
+      console.error(error);
+    },
+  },
 });
 ```
 
