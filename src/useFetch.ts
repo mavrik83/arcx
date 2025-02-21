@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * @module useFetch
  * A React hook for fetching data using `fetchRequest`.

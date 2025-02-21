@@ -1,3 +1,5 @@
+"use client";
+
 import { fetchRequest, FetchOptions } from "./fetchRequest";
 
 /**

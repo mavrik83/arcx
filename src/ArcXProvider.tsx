@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext, useEffect, PropsWithChildren } from "react";
 import { ArcXConfig, configureArcX } from "./config";
 
