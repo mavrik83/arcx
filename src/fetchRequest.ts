@@ -1,37 +1,51 @@
-import { globalConfig } from "./config";
+import { ArcXConfig, globalConfig } from "./config";
+import { HTTPError, NetworkError } from "./errors";
 
 /**
- * Additional fetch options specific to ArcX.
+ * Possible response parse methods.
  */
-export type FetchOptions = RequestInit & {
-  /** A record of query parameters to be appended to the request URL. */
+export type ParseType = "json" | "text" | "blob" | "arrayBuffer";
+
+/** Additional ArcX-specific options. */
+export interface FetchOptions extends RequestInit {
   queryParams?: Record<string, string | number | boolean>;
-
-  /** Timeout in milliseconds after which the request will be aborted. */
   timeout?: number;
-
-  /** Number of times to retry the request in case of network errors. */
   retries?: number;
-};
+  parseAs?: ParseType;
+}
 
-/**
- * Delays execution for a specified number of milliseconds.
- * @param ms - The number of milliseconds to delay.
- * @returns A promise that resolves after the specified delay.
- */
+/** A small delay utility for retries. */
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Safely converts various `HeadersInit` forms into a `Record<string, string>`.
- * - Headers: Iterate and build a record.
- * - string[][]: Convert array of [key, value] pairs to a record.
- * - Record<string, string>: Already a record, just return it.
- *
- * @param headersInit - The headers to be converted.
- * @returns A `Record<string, string>` or `undefined` if no headers provided.
+ * Unified parse for various response types.
+ * Forces the result to type `T` after parsing.
  */
+async function parseResponse<T>(
+  response: Response,
+  parseAs: ParseType
+): Promise<T> {
+  let parsed: unknown;
+  switch (parseAs) {
+    case "text":
+      parsed = await response.text();
+      break;
+    case "blob":
+      parsed = await response.blob();
+      break;
+    case "arrayBuffer":
+      parsed = await response.arrayBuffer();
+      break;
+    case "json":
+    default:
+      parsed = await response.json();
+  }
+  return parsed as T;
+}
+
+/** Convert `HeadersInit` to a `Record<string, string>` if possible. */
 function toRecord(
   headersInit?: HeadersInit
 ): Record<string, string> | undefined {
@@ -45,12 +59,12 @@ function toRecord(
     return result;
   } else if (Array.isArray(headersInit)) {
     const result: Record<string, string> = {};
-    for (const [key, value] of headersInit) {
-      result[key] = value;
+    for (const [k, v] of headersInit) {
+      result[k] = v;
     }
     return result;
   } else {
-    // It's already a Record<string, string>
+    // It's already a record
     return headersInit;
   }
 }
@@ -58,75 +72,68 @@ function toRecord(
 /**
  * Merges multiple header objects into one, giving precedence
  * to headers from later objects in case of conflicts.
- *
- * @param headerObjects - An array of header objects to merge.
- * @returns A merged record of headers.
  */
 function mergeHeaders(
   ...headerObjects: (Record<string, string> | undefined)[]
 ): Record<string, string> {
   return headerObjects.reduce<Record<string, string>>((acc, obj) => {
     if (!obj) return acc;
-    for (const [key, value] of Object.entries(obj)) {
-      acc[key] = value;
+    for (const [k, v] of Object.entries(obj)) {
+      acc[k] = v;
     }
     return acc;
-  }, {});
+  }, {} as Record<string, string>);
 }
 
 /**
- * Performs a fetch request with retries, timeouts, and interceptors.
+ * A typed fetch request with retries, timeouts, interceptors, etc.
  *
- * @template T - The expected shape of the JSON response.
- * @param url - The endpoint or path for the request.
- * @param options - Additional request options.
- * @returns A promise resolving to the parsed JSON response of type `T`.
+ * @template T - The shape of the final parsed response.
+ * @param url - Endpoint path
+ * @param options - Additional ArcX fetch options
  */
 export async function fetchRequest<T>(
   url: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  // Determine final URL (prepend global baseUrl if provided).
-  let finalUrl = globalConfig.baseUrl ? globalConfig.baseUrl + url : url;
+  // Combine config from global + user options
+  const {
+    interceptors,
+    headers: globalHeaders,
+    ...globalRequestInit
+  } = globalConfig as ArcXConfig<T>;
 
-  // Serialize query parameters into the URL if provided.
+  // Build final URL (including optional query params)
+  let finalUrl = globalConfig.baseUrl ? globalConfig.baseUrl + url : url;
   if (options.queryParams) {
     const params = new URLSearchParams(
-      Object.entries(options.queryParams).reduce((acc, [key, value]) => {
-        acc[key] = String(value);
+      Object.entries(options.queryParams).reduce((acc, [key, val]) => {
+        acc[key] = String(val);
         return acc;
       }, {} as Record<string, string>)
     ).toString();
     finalUrl += `?${params}`;
   }
 
-  // Extract interceptors and global headers if any
-  const {
-    interceptors,
-    headers: globalHeaders,
-    ...globalRequestInit
-  } = globalConfig;
+  // Merge headers
+  const mergedHeaders = mergeHeaders(
+    toRecord(globalHeaders),
+    toRecord(options.headers)
+  );
 
-  // Convert any HeadersInit to a record.
-  const globalHeadersRecord = toRecord(globalHeaders);
-  const requestHeadersRecord = toRecord(options.headers);
-
-  // Merge global headers and request headers
-  const mergedHeaders = mergeHeaders(globalHeadersRecord, requestHeadersRecord);
-
-  // Construct the final request config.
+  // Construct final RequestInit
   const config: RequestInit = {
     ...globalRequestInit,
     ...options,
     headers: mergedHeaders,
   };
 
-  // Invoke onRequest interceptor if available.
+  // onRequest interceptor
   if (interceptors?.onRequest) {
     Object.assign(config, interceptors.onRequest(config));
   }
 
-  // If the body is a plain object, stringify it and set JSON headers.
+  // If body is a plain object, JSONify it
   if (
     config.body &&
     typeof config.body === "object" &&
@@ -139,54 +146,59 @@ export async function fetchRequest<T>(
     };
   }
 
-  // Setup an AbortController for timeout.
+  // Timeout with AbortController
   const controller = new AbortController();
   config.signal = controller.signal;
-
   if (options.timeout) {
     setTimeout(() => controller.abort(), options.timeout);
   }
 
-  // Handle retries with exponential backoff.
+  // Handling retries
   let attempt = 0;
   const maxRetries = options.retries ?? 0;
+  const parseType = options.parseAs ?? "json";
 
   while (attempt <= maxRetries) {
     try {
       const response = await fetch(finalUrl, config);
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => "Unknown error");
-        throw new Error(
-          `HTTP error: ${response.status} (${response.statusText}) - ${errorText} [URL: ${finalUrl}]`
+        const responseBody = await response.text().catch(() => "Unknown error");
+        throw new HTTPError(
+          `HTTP Error: ${response.status} (${response.statusText}) [URL: ${finalUrl}]`,
+          response.status,
+          responseBody
         );
       }
 
-      // Parse JSON response.
-      let result = (await response.json()) as T;
+      // Parse according to parseType
+      let result = await parseResponse<T>(response, parseType);
 
-      // Invoke onResponse interceptor if available.
+      // onResponse interceptor must return T or Promise<T>
       if (interceptors?.onResponse) {
         result = await interceptors.onResponse(result);
       }
 
       return result;
     } catch (error) {
-      // Invoke onError interceptor if available.
+      // onError interceptor
       if (interceptors?.onError) {
         interceptors.onError(error);
       }
 
-      // If we've reached the maximum retries, throw the error.
+      // If final attempt fails, throw
       if (attempt === maxRetries) {
+        if (!(error instanceof Error)) {
+          throw new NetworkError("Unknown network error occurred.");
+        }
         throw error;
       }
 
-      // Exponential backoff: 100ms, 200ms, 400ms, etc.
       attempt++;
+      // Exponential backoff
       await delay(2 ** attempt * 100);
     }
   }
 
-  throw new Error("Request failed after retries.");
+  throw new NetworkError("Request failed after retries.");
 }

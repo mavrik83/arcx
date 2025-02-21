@@ -7,7 +7,8 @@
     "moduleResolution": "Node",
     "target": "ESNext",
     "declaration": true,
-    "emitDeclarationOnly": false
+    "emitDeclarationOnly": false,
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }

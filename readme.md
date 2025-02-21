@@ -6,111 +6,146 @@ ArcX is a lightweight, dependency-free fetch utility for handling API requests i
 
 ## Installation
 
-To install ArcX, use npm:
-
 ```bash
 npm install arcx
 ```
 
-## Usage
-
-### Configuring ArcX
-
-Set up global configurations using `configureArcX`:
+## Quick Start
 
 ```ts
-import { configureArcX } from "arcx";
+import { configureArcX, fetchRequest } from "arcx";
 
-configureArcX({
-  baseUrl: "https://api.example.com",
-  headers: { "Authorization": "Bearer token" },
-  interceptors: {
-    onRequest: (config) => {
-      // Modify request
-      return config;
-    },
-    onResponse: (response) => {
-      // Modify response
-      return response;
-    },
-    onError: (error) => {
-      console.error(error);
-    },
-  },
-});
-```
+// 1. Configure ArcX globally
+configureArcX({ baseUrl: "https://api.example.com" });
 
-### Fetching Data in Non-React Environments
-
-Use `fetchRequest` to make API calls:
-
-```ts
-import { fetchRequest } from "arcx";
-
-async function getUser() {
-  try {
-    const user = await fetchRequest<{ id: number; name: string }>("/user/1");
-    console.log(user);
-  } catch (error) {
-    console.error(error);
-  }
+// 2. Fetch data anywhere
+async function getData() {
+  const data = await fetchRequest("/some-endpoint");
+  console.log(data);
 }
 ```
 
-### Fetching Data in React Components
+## Using ArcX in React
 
-Use `useFetch` for API calls inside React components:
+### ArcXProvider (Optional)
+
+If you’re building a React application, you can wrap your app with the `ArcXProvider` for a simpler configuration:
+
+```tsx
+import { ArcXProvider } from "arcx";
+
+function App() {
+  return (
+    <ArcXProvider
+      baseUrl="https://api.example.com"
+      headers={{ Authorization: "Bearer token" }}
+    >
+      {/* ...rest of your app */}
+    </ArcXProvider>
+  );
+}
+```
+
+### `useFetch` Hook
 
 ```tsx
 import { useFetch } from "arcx";
 
 function UserComponent() {
-  const { data, isLoading, error, refetch } = useFetch<{ id: number; name: string }>("/user/1");
+  const { data, isLoading, error, refetch } = useFetch("/api/user");
 
   if (isLoading) return <p>Loading...</p>;
   if (error) return <p>Error: {error.message}</p>;
 
   return (
     <div>
-      <p>User: {data?.name}</p>
+      <p>User: {JSON.stringify(data)}</p>
       <button onClick={refetch}>Refresh</button>
     </div>
   );
 }
 ```
 
-## API Reference
+### Suspense Support (Optional)
 
-### `configureArcX(config: ArcXConfig): void`
+If you use React 18 Suspense, you can import `useFetchSuspense`:
 
-Configures global settings.
+```tsx
+import React, { Suspense } from "react";
+import { useFetchSuspense } from "arcx";
 
-### `fetchRequest<T>(url: string, options?: FetchOptions): Promise<T>`
+function MySuspenseComponent() {
+  const data = useFetchSuspense("/api/hello");
+  return <div>{JSON.stringify(data)}</div>;
+}
 
-Makes a fetch request with optional configurations.
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MySuspenseComponent />
+    </Suspense>
+  );
+}
+```
 
-### `useFetch<T>(url: string, options?: FetchOptions & { manual?: boolean })`
+## Key Features
 
-React hook for API fetching with built-in state management.
+- **No Dependencies**  
+- **Type-Safe API with TypeScript Generics**  
+- **Lightweight (~2KB minified)**  
+- **Global Configuration with Overrides**  
+- **Interceptors for Requests, Responses, and Errors**  
+- **Flexible Response Parsing**  
+- **Automatic JSON Parsing by Default**  
+- **Fetch Requests with Retry Mechanisms**  
+- **Timeout Support**  
+- **Abort Controller for Cancellation**  
+- **Query Parameter Handling**  
+- **React Hook with Manual or Automatic Fetching**  
+- **(Optional) Suspense Support**  
 
-## Features
+## Advanced Usage
 
-- No Dependencies
-- Type-Safe API with TypeScript Generics
-- Lightweight (~2KB minified)
-- Global Configuration with Overrides
-- Interceptors for Requests, Responses, and Errors
-- Automatic JSON Parsing
-- Fetch Requests with Retry Mechanisms
-- Timeout Support
-- Abort Controller for Cancellation
-- Query Parameter Handling
-- React Hook with Manual or Automatic Fetching
+### Manual Fetch (No Auto Fire)
 
-## License
+```ts
+const { data, error, refetch } = useFetch("/api/user", { manual: true });
 
-MIT License
+// Then trigger it as needed
+useEffect(() => {
+  refetch();
+}, []);
+```
+
+### File Upload Example
+
+```ts
+const formData = new FormData();
+formData.append("file", file);
+
+await fetchRequest("/api/upload", {
+  method: "POST",
+  body: formData,
+});
+```
+
+### Custom Error Handling
+
+```ts
+configureArcX({
+  interceptors: {
+    onError: (error) => {
+      // Possibly handle or re-throw
+      console.error("Global ArcX Error:", error);
+    },
+  },
+});
+```
 
 ## Contributing
 
-Pull requests and issues are welcome!
+Pull requests and issues are always welcome!
+
+## License
+
+MIT
