@@ -1,14 +1,15 @@
+// tsconfig.json
 {
   "compilerOptions": {
-    "outDir": "dist",
     "rootDir": "src",
     "strict": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
     "target": "ESNext",
-    "declaration": true,
-    "emitDeclarationOnly": false,
-    "jsx": "react-jsx"
+    "moduleResolution": "Node",
+    "jsx": "react-jsx",
+
+    // Speeds up compilation; recommended best practice:
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
   "include": ["src"]
 }
