@@ -1,126 +1,210 @@
-# ArcX - API Request Control
+# ArcX
 
-## Overview
+<div align="center">
+  <strong>Lightweight, Type-Safe API Request Control</strong>
+  <br />
+  <sub>Zero dependencies • ~2KB minified • React + Node.js compatible</sub>
+</div>
 
-ArcX is a lightweight, dependency-free fetch utility for handling API requests in both React and non-React environments. It provides an easy-to-use API for global configurations, interceptors, and retry mechanisms while remaining highly performant and flexible.
+<br />
 
-## Installation
+[![npm version](https://img.shields.io/npm/v/arcx.svg)](https://www.npmjs.com/package/arcx)
+[![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-blue.svg)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+✨ **Modern & Lightweight**
+
+- Zero dependencies
+- TypeScript-first with full type safety
+- ~2KB minified
+- Built for React 18+ and Node.js environments
+
+🔧 **Powerful & Flexible**
+
+- Global configuration with local overrides
+- Request/Response/Error interceptors
+- Automatic retries and timeout handling
+- Query parameter handling
+- File upload support
+
+⚛️ **React Integration**
+
+- React hooks (`useFetch`, `useFetchSuspense`)
+- Context provider for global config
+- Next.js App Router compatible
+- Optional Suspense support
+
+## Quick Start
 
 ```bash
 npm install arcx
 ```
 
-## Quick Start
+### Basic Usage
 
-```ts
+```typescript
 import { configureArcX, fetchRequest } from "arcx";
 
-// 1. Configure ArcX globally
-configureArcX({ baseUrl: "https://api.example.com" });
+// Optional global config
+configureArcX({ 
+  baseUrl: "https://api.example.com",
+  headers: { "Authorization": "Bearer token" }
+});
 
-// 2. Fetch data anywhere
-async function getData() {
-  const data = await fetchRequest("/some-endpoint");
-  console.log(data);
+// Type-safe requests
+interface User {
+  id: number;
+  name: string;
 }
+
+const user = await fetchRequest<User>("/users/1");
+console.log(user.name); // TypeScript knows this exists!
 ```
 
-## Using ArcX in React
-
-### `ArcXProvider` (Optional)
-
-If you’re building a React application, you can wrap your app with the `ArcXProvider` for a simpler configuration:
-
-```tsx
-import { ArcXProvider } from "arcx";
-
-function App() {
-  return (
-    <ArcXProvider baseUrl="https://api.example.com" headers={{ Authorization: "Bearer token" }}>
-      {/* ...rest of your app */}
-    </ArcXProvider>
-  );
-}
-```
-
-### `useFetch` Hook
+### React Hook
 
 ```tsx
 import { useFetch } from "arcx";
 
-function UserComponent() {
-  const { data, isLoading, error, refetch } = useFetch("/api/user");
+function UserProfile() {
+  const { data, isLoading, error, refetch } = useFetch<User>("/users/1");
 
-  if (isLoading) return <p>Loading...</p>;
-  if (error) return <p>Error: {error.message}</p>;
+  if (isLoading) return <Spinner />;
+  if (error) return <Error message={error.message} />;
 
   return (
     <div>
-      <p>User: {JSON.stringify(data)}</p>
+      <h1>{data.name}</h1>
       <button onClick={refetch}>Refresh</button>
     </div>
   );
 }
 ```
 
-### Suspense Support (Optional)
+## Core Concepts
 
-If you use React 18 Suspense, you can import `useFetchSuspense`:
+### Global Configuration
+
+Configure once, use anywhere:
+
+```typescript
+configureArcX({
+  baseUrl: "https://api.example.com",
+  headers: {
+    "Authorization": "Bearer token",
+    "Content-Type": "application/json"
+  },
+  interceptors: {
+    onRequest: (config) => {
+      // Modify request config
+      return config;
+    },
+    onResponse: (response) => {
+      // Transform response
+      return response;
+    },
+    onError: (error) => {
+      // Handle or log errors
+      console.error(error);
+    }
+  }
+});
+```
+
+### React Provider
+
+For React applications, wrap your app with `ArcXProvider`:
 
 ```tsx
-import React, { Suspense } from "react";
-import { useFetchSuspense } from "arcx";
+import { ArcXProvider } from "arcx";
 
-function MySuspenseComponent() {
-  const data = useFetchSuspense("/api/hello");
-  return <div>{JSON.stringify(data)}</div>;
-}
-
-export default function Page() {
+function App() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <MySuspenseComponent />
-    </Suspense>
+    <ArcXProvider 
+      baseUrl="https://api.example.com"
+      headers={{ Authorization: "Bearer token" }}
+    >
+      <YourApp />
+    </ArcXProvider>
   );
 }
 ```
 
-## Using ArcX with Next.js (App Router)
+### Advanced Features
 
-With Next.js 13+ (App Router), you can still use `ArcXProvider` in a **Client Component**. For example, create a `providers.tsx` file:
+#### Retry Mechanism
+
+```typescript
+const data = await fetchRequest("/api/unstable", {
+  retries: 3, // Retry 3 times with exponential backoff
+  timeout: 5000 // 5 second timeout
+});
+```
+
+#### File Uploads
+
+```typescript
+const formData = new FormData();
+formData.append("file", fileInput.files[0]);
+
+await fetchRequest("/api/upload", {
+  method: "POST",
+  body: formData
+});
+```
+
+#### Query Parameters
+
+```typescript
+const users = await fetchRequest("/api/users", {
+  queryParams: {
+    page: 1,
+    limit: 10,
+    search: "john"
+  }
+}); // => /api/users?page=1&limit=10&search=john
+```
+
+#### Manual Fetching
+
+```typescript
+const { data, refetch } = useFetch("/api/data", { 
+  manual: true // Don't fetch on mount
+});
+
+useEffect(() => {
+  refetch(); // Fetch when needed
+}, [someCondition]);
+```
+
+## Next.js Integration
+
+ArcX works seamlessly with Next.js App Router. Create a client provider:
 
 ```tsx
+// app/providers.tsx
 "use client";
 
-import React from "react";
-import { ArcXProvider } from "arcx";
-
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }) {
   return (
-    <ArcXProvider
-      baseUrl="https://api.example.com"
-      interceptors={{
-        onError: (error) => {
-          console.error("[ArcX] Global error:", error);
-        },
-      }}
-    >
+    <ArcXProvider baseUrl={process.env.NEXT_PUBLIC_API_URL}>
       {children}
     </ArcXProvider>
   );
 }
 ```
 
-Then, in your `layout.tsx` or a similar Server Component, render `<Providers>`:
+Use in your layout:
 
 ```tsx
-// app/layout.tsx (Server Component by default)
-import React from "react";
+// app/layout.tsx
 import { Providers } from "./providers";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html>
       <body>
         <Providers>{children}</Providers>
       </body>
@@ -129,102 +213,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-Since `Providers` is a **Client Component**, you can safely pass function-based interceptors to `ArcXProvider`.
+## TypeScript Support
 
-### Fetching in Next.js
+ArcX is written in TypeScript and provides full type safety:
 
-- **Client-side Fetches**: Use `useFetch` or `fetchRequest` in Client Components.  
-- **Server-side Fetches**: You can call `fetchRequest` in a server route or Server Component, but be aware that interceptors requiring browser APIs (like `useEffect`) won’t apply in SSR-only contexts. If you need global config on the server, call `configureArcX` in your server code with the appropriate settings.
-
-## Using ArcX in Non-React / Node
-
-ArcX is not limited to React. You can simply import `fetchRequest` in any Node or browser-based script:
-
-```ts
-import { configureArcX, fetchRequest } from "arcx";
-
-// Optional global config
-configureArcX({ baseUrl: "https://api.example.com" });
-
-async function main() {
-  const data = await fetchRequest("/endpoint", { method: "GET" });
-  console.log("Data:", data);
+```typescript
+interface User {
+  id: number;
+  name: string;
 }
 
-main().catch(console.error);
-```
+// Type-safe response
+const { data } = useFetch<User>("/user");
+console.log(data.name); // TypeScript knows this exists
 
-You can still provide interceptors if you like:
+// Type-safe error handling
+interface ApiError {
+  code: string;
+  message: string;
+}
 
-```ts
 configureArcX({
   interceptors: {
-    onRequest: (req) => {
-      req.headers = { ...req.headers, "X-Custom": "Value" };
-      return req;
-    },
-  },
-});
-```
-
-## Key Features
-
-- **No Dependencies**  
-- **Type-Safe API with TypeScript Generics**  
-- **Lightweight (~2KB minified)**  
-- **Global Configuration with Overrides**  
-- **Interceptors for Requests, Responses, and Errors**  
-- **Flexible Response Parsing**  
-- **Automatic JSON Parsing by Default**  
-- **Fetch Requests with Retry Mechanisms**  
-- **Timeout Support**  
-- **Abort Controller for Cancellation**  
-- **Query Parameter Handling**  
-- **React Hook with Manual or Automatic Fetching**  
-- **(Optional) Suspense Support**  
-
-## Advanced Usage
-
-### Manual Fetch (No Auto Fire)
-
-```ts
-const { data, error, refetch } = useFetch("/api/user", { manual: true });
-
-// Then trigger it as needed
-useEffect(() => {
-  refetch();
-}, []);
-```
-
-### File Upload Example
-
-```ts
-const formData = new FormData();
-formData.append("file", file);
-
-await fetchRequest("/api/upload", {
-  method: "POST",
-  body: formData,
-});
-```
-
-### Custom Error Handling
-
-```ts
-configureArcX({
-  interceptors: {
-    onError: (error) => {
-      // Possibly handle or re-throw
-      console.error("Global ArcX Error:", error);
-    },
-  },
+    onError: (error: ApiError) => {
+      console.error(error.code); // Type-safe error handling
+    }
+  }
 });
 ```
 
 ## Contributing
 
-Pull requests and issues are always welcome!
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-MIT
+MIT © [Ryan Huber](LICENSE)
